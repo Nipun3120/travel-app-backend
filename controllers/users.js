@@ -5,8 +5,9 @@ const User = require("../models/db/users");
 var jwt = require("jsonwebtoken");
 // const verifyToken = require("../middlewares/authJwt");
 const config = require("../config/auth.config");
-const createToken = require("../models/logic/authToken");
+const { createToken, getUserFromToken } = require("../models/logic/authToken");
 const verifyToken = require("../middlewares/authJwt");
+// const getUserFromToken = require("../models/logic/authToken");
 // const { v4: uuidv4 } = require("uuid");
 // const { uid } = require("uid");
 
@@ -33,6 +34,7 @@ router.post("/register", async (req, res) => {
       email: email.toLowerCase().trim(), // cleaning email
       password: encryptedUserPassword,
       username,
+      isLoggedIn: false,
       //  _id: uid(16),
     });
 
@@ -52,8 +54,9 @@ router.post("/login", async (req, res) => {
       return res.status(400).send("All input is required");
     }
     const user = await User.findOne({ username });
-    console.log(user);
+    // console.log(user);
     if (user && (await bcrypt.compare(password, user.password))) {
+      console.log("HEREEEE ");
       let accessToken = createToken(
         { uid: user._id },
         config.TOKEN.ACCESS_SECRET,
@@ -65,11 +68,20 @@ router.post("/login", async (req, res) => {
         config.TIME.jwtRefreshExpiration
       );
 
-      refreshTokens.push(refreshToken);
-      const uid = user._id;
-      return res.status(200).json({ accessToken, refreshToken, uid });
-    }
-    return res.status(400).send("Invalid Credentials");
+      user.isLoggedIn = true;
+      user
+        .save()
+        .then((result) => {
+          console.log(result);
+          refreshTokens.push(refreshToken);
+          const uid = user._id;
+          res.json({ accessToken, refreshToken, uid, ok: true }).status(200);
+        })
+        .catch((err) => {
+          console.log("error in saving login status, -> ", err);
+          res.json({ message: "login failed", ok: false }).status(400);
+        });
+    } else res.status(400).json({ message: "Invalid Credentials", ok: false });
   } catch (err) {
     console.log(err);
   }
@@ -134,6 +146,19 @@ router.post("/password_reset", async (req, res) => {
   console.log(user);
   if (user) return res.status(200).json({ message: "email sent" });
   else return res.status(404).json({ message: "Username not found" });
+});
+
+router.post("/logout", async (req, res) => {
+  const token = req.headers["authorization"].split(" ")[1];
+  try {
+    const user = await getUserFromToken(token);
+    user.isLoggedIn = false;
+    user.save();
+    res.json({ ok: true, forceLogout: false }).status(200);
+  } catch (err) {
+    console.log("error in logging out, ", err);
+    res.json({ ok: false, forceLogout: true });
+  }
 });
 
 module.exports = router;
