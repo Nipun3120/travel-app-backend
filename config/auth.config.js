@@ -4,8 +4,8 @@ const config = {
     ACCESS_SECRET: process.env.ACCESS_SECRET,
   },
   TIME: {
-    jwtExpiration: "30m", // 30 mins
-    jwtRefreshExpiration: "10d", // 10 hours
+    jwtExpiration: "60m", // 60 mins
+    jwtRefreshExpiration: "30d", // 30 days
   },
 };
 
